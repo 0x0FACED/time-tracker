@@ -1,7 +1,20 @@
 package configs
 
 type DatabaseConfig struct {
-	Name string
+	DBUsername string
+	DBName     string
+	DBHost     string
+	DBPort     string
+	DBPass     string
+}
+
+type ServerConfig struct {
 	Host string
-	Pass string
+	Port string
+}
+
+type Config struct {
+	DatabaseConfig
+	ServerConfig
+}
 }
