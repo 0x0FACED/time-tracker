@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -17,7 +18,13 @@ func (s *Server) prepareRoutes() {
 }
 
 func (s *Server) getUsersHandler(ctx *gin.Context) {
+	users, err := s.db.GetUsers()
+	if err != nil {
+		log.Println("err in get users: ", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err})
+	}
 
+	ctx.JSON(http.StatusOK, gin.H{"users": users})
 }
 
 func (s *Server) getUserTasksHandler(ctx *gin.Context) {
