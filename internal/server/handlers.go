@@ -20,8 +20,14 @@ func (s *Server) prepareRoutes() {
 func (s *Server) getUsersHandler(ctx *gin.Context) {
 	users, err := s.db.GetUsers()
 	if err != nil {
-		log.Println("err in get users: ", err)
+		log.Println("get users err: ", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err})
+		return
+	}
+	if len(users) == 0 {
+		log.Println(errors.ErrNoUsersFound)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": errors.ErrNoUsersFound})
+		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"users": users})
