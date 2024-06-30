@@ -38,7 +38,27 @@ func (s *Server) getUserTasksHandler(ctx *gin.Context) {
 }
 
 func (s *Server) createUserHandler(ctx *gin.Context) {
+	var input struct {
+		passportNumber string `json:"pass_number"`
+	}
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
+	// fetching fata from external api //
+	// .......
+	// creating new user with pass_number and fetched data from external api
+	// .......
+
+	// TODO: refactor
+	err := s.db.AddUser(&models.User{})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"res": "created"})
 }
 
 func (s *Server) deleteUserHandler(ctx *gin.Context) {
