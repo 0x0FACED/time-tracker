@@ -30,14 +30,18 @@ func (p *Postgres) connectionString() string {
 }
 
 func (p *Postgres) Connect() error {
-	db, err := sql.Open("postgres", p.connectionString())
+	url := p.connectionString()
+	db, err := sql.Open("postgres", url)
 	if err != nil {
+		log.Fatalln("cant open db: ", err)
 		return err
 	}
 	if db.Ping() != nil {
 		return err
 	}
+	migrations.Up(url)
 	p.sql = db
+	log.Println("DB AFTER OPEN: ", p.sql)
 	return nil
 }
 
