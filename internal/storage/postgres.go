@@ -4,8 +4,13 @@ import (
 	"database/sql"
 	_ "database/sql"
 	"fmt"
+	"log"
 	"time-tracker/configs"
 	"time-tracker/internal/models"
+	"time-tracker/internal/utils/queries"
+	"time-tracker/migrations"
+
+	_ "github.com/lib/pq"
 )
 
 type Postgres struct {
