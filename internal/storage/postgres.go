@@ -2,7 +2,6 @@ package storage
 
 import (
 	"database/sql"
-	_ "database/sql"
 	"fmt"
 	"log"
 	"time-tracker/configs"
@@ -82,13 +81,21 @@ func (p *Postgres) GetTasksByUserID(id int) ([]models.Task, error) {
 }
 
 func (p *Postgres) AddUser(u *models.User) error {
-	// TODO: impl
-	panic("not impl")
+	_, err := p.sql.Exec(queries.AddUser)
+	if err != nil {
+		log.Fatalln("cant create user: ", err)
+		return err
+	}
+	return nil
 }
 
 func (p *Postgres) DeleteUser(id int) error {
-	// TODO: impl
-	panic("not impl")
+	_, err := p.sql.Exec(queries.DeleteUser, id)
+	if err != nil {
+		log.Fatalln("cant delete user: ", err)
+		return err
+	}
+	return nil
 }
 
 func (p *Postgres) UpdateUser(u *models.User) error {
