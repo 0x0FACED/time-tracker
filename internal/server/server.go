@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log"
 	"time-tracker/configs"
 	"time-tracker/internal/storage"
 
@@ -24,6 +25,7 @@ func New(cfg configs.ServerConfig, db storage.Database) *Server {
 func (s *Server) Start() error {
 	s.prepare()
 	addr := s.cfg.Host + ":" + s.cfg.Port
+	log.Println("ADDR: ", addr)
 	s.r.Run(addr)
 	return nil
 }
