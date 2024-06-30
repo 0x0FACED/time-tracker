@@ -12,6 +12,7 @@ type Database interface {
 
 type UserDatabase interface {
 	GetUsers() (map[int]models.User, error)
+	GetUserByID(id int) (*models.User, error)
 	GetTasksByUserID(id int) ([]models.Task, error)
 	AddUser(u *models.User) error
 	DeleteUser(id int) error
@@ -20,5 +21,5 @@ type UserDatabase interface {
 
 type TaskDatabase interface {
 	AddStartTask(t *models.Task) error
-	AddEndTask(t *models.Task) error
+	AddEndTask(id int) error
 }
