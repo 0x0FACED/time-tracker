@@ -51,8 +51,9 @@ func (p *Postgres) Disconnect() error {
 }
 
 func (p *Postgres) GetUsers() (map[int]models.User, error) {
-	rows, err := p.sql.Query("SELECT id, passport_number, passport_serie, surname, name, patronymic, address FROM users")
+	rows, err := p.sql.Query(queries.GetUsers)
 	if err != nil {
+		log.Println("err in query: ", err)
 		return nil, err
 	}
 	defer rows.Close()
