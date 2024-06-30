@@ -57,7 +57,7 @@ func (s *Server) createUserHandler(ctx *gin.Context) {
 	// TODO: refactor
 	err := s.db.AddUser(&models.User{})
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
 		return
 	}
 
@@ -75,18 +75,36 @@ func (s *Server) deleteUserHandler(ctx *gin.Context) {
 	err = s.db.DeleteUser(idInt)
 	if err != nil {
 		log.Println("cant delete user: ", err)
-		ctx.JSON(http.StatusBadRequest, gin.H{"res": "cant delete", "err": err})
+		ctx.JSON(http.StatusBadRequest, gin.H{"res": "cant delete", "err": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"res": "succesfully deleted"})
+	ctx.JSON(http.StatusOK, gin.H{"res": "successfully deleted"})
 }
 
 func (s *Server) updateUserHandler(ctx *gin.Context) {
+	var updateUserInput struct {
+		Surname    *string `json:"surname,omitempty"`
+		Name       *string `json:"name,omitempty"`
+		Patronymic *string `json:"patronymic,omitempty"`
+		Address    *string `json:"address,omitempty"`
+	}
+	if err := ctx.ShouldBindJSON(&updateUserInput); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
+		return
+	}
 
 }
 
 func (s *Server) startTaskHandler(ctx *gin.Context) {
+	var input struct {
+		UserID int    `json:"user_id"`
+		Desc   string `json:"description"`
+	}
+
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
+	}
 
 }
 
