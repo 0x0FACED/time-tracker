@@ -42,7 +42,21 @@ func (s *Server) createUserHandler(ctx *gin.Context) {
 }
 
 func (s *Server) deleteUserHandler(ctx *gin.Context) {
+	id := ctx.Param("id")
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		log.Fatalln("id is not a number: ", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"err": "id is not a number"})
+		return
+	}
+	err = s.db.DeleteUser(idInt)
+	if err != nil {
+		log.Println("cant delete user: ", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"res": "cant delete", "err": err})
+		return
+	}
 
+	ctx.JSON(http.StatusOK, gin.H{"res": "succesfully deleted"})
 }
 
 func (s *Server) updateUserHandler(ctx *gin.Context) {
