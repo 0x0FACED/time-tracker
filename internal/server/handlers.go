@@ -1,9 +1,15 @@
 package server
 
 import (
+	"bytes"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time-tracker/internal/models"
 	"time-tracker/internal/utils/errors"
 
@@ -17,11 +23,56 @@ func (s *Server) prepareRoutes() {
 	s.r.Handle(http.MethodDelete, "/users/:id", s.deleteUserHandler)
 	s.r.Handle(http.MethodPut, "/users/:id", s.updateUserHandler)
 	s.r.Handle(http.MethodPost, "/tasks/start", s.startTaskHandler)
-	s.r.Handle(http.MethodPost, "/tasks/stop", s.stopTaskHandler)
+	s.r.Handle(http.MethodPost, "/tasks/:id/stop", s.stopTaskHandler)
 }
 
 func (s *Server) getUsersHandler(ctx *gin.Context) {
-	users, err := s.db.GetUsers()
+	var req models.GetUsersRequest
+
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"err": "invalid query parameters"})
+		return
+	}
+	query := "SELECT id, passport_number, pass_serie, surname, name, patronymic, address FROM users WHERE 1=1"
+	params := []interface{}{}
+	paramCounter := 1
+
+	if req.PassportNumber != "" {
+		query += fmt.Sprintf(" AND passport_number = $%d", paramCounter)
+		params = append(params, req.PassportNumber)
+		paramCounter++
+	}
+	if req.PassSerie != "" {
+		query += fmt.Sprintf(" AND pass_serie = $%d", paramCounter)
+		params = append(params, req.PassSerie)
+		paramCounter++
+	}
+	if req.Surname != "" {
+		query += fmt.Sprintf(" AND surname = $%d", paramCounter)
+		params = append(params, req.Surname)
+		paramCounter++
+	}
+	if req.Name != "" {
+		query += fmt.Sprintf(" AND name = $%d", paramCounter)
+		params = append(params, req.Name)
+		paramCounter++
+	}
+	if req.Patronymic != "" {
+		query += fmt.Sprintf(" AND patronymic = $%d", paramCounter)
+		params = append(params, req.Patronymic)
+		paramCounter++
+	}
+	if req.Address != "" {
+		query += fmt.Sprintf(" AND address = $%d", paramCounter)
+		params = append(params, req.Address)
+		paramCounter++
+	}
+
+	// pagination
+	offset := (req.Page - 1) * req.PageSize
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", paramCounter, paramCounter+1)
+	params = append(params, req.PageSize, offset)
+	users, err := s.db.GetUsers(query, params...)
 	if err != nil {
 		log.Println("get users err: ", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err})
@@ -29,7 +80,7 @@ func (s *Server) getUsersHandler(ctx *gin.Context) {
 	}
 	if len(users) == 0 {
 		log.Println(errors.ErrNoUsersFound)
-		ctx.JSON(http.StatusInternalServerError, gin.H{"err": errors.ErrNoUsersFound})
+		ctx.JSON(http.StatusNotFound, gin.H{"err": errors.ErrNoUsersFound})
 		return
 	}
 
@@ -42,22 +93,54 @@ func (s *Server) getUserTasksHandler(ctx *gin.Context) {
 
 func (s *Server) createUserHandler(ctx *gin.Context) {
 	var input struct {
-		passportNumber string `json:"pass_number"`
+		PassportNumber string `json:"passport_number"`
 	}
 	if err := ctx.ShouldBindJSON(&input); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
+		return
+	}
+	log.Println("PASSPORT: ", input.PassportNumber)
+
+	reqBody, err := json.Marshal(map[string]string{
+		"passport_number": input.PassportNumber,
+	})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "failed to marshal request"})
+		return
+	}
+	// external api call (just for example)
+	resp, err := http.Post("http://localhost:8081/info", "application/json", bytes.NewBuffer(reqBody))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "failed to call external API"})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("external API returned error: %s", body)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "failed to get user info from external API"})
 		return
 	}
 
-	// fetching fata from external api //
-	// .......
-	// creating new user with pass_number and fetched data from external api
-	// .......
+	var apiResponse models.User
+	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "failed to decode API response"})
+		return
+	}
+	passport := strings.Fields(input.PassportNumber)
+	newUser := &models.User{
+		PassNumber: passport[1],
+		PassSerie:  passport[0],
+		Surname:    apiResponse.Surname,
+		Name:       apiResponse.Name,
+		Patronymic: apiResponse.Patronymic,
+		Address:    apiResponse.Address,
+	}
 
-	// TODO: refactor
-	err := s.db.AddUser(&models.User{})
+	err = s.db.AddUser(newUser)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
