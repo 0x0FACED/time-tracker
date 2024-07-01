@@ -87,9 +87,34 @@ func (p *Postgres) GetUserByID(id int) (*models.User, error) {
 	return &user, nil
 }
 
-func (p *Postgres) GetTasksByUserID(id int) ([]models.Task, error) {
-	// TODO: impl
-	panic("not impl")
+func (p *Postgres) GetUserWorklogs(req *models.GetUserWorklogsRequest) ([]models.Worklog, error) {
+	query := `
+        SELECT
+            task_id,
+            SUM(EXTRACT(EPOCH FROM (end_time - start_time))/3600) as hours,
+            SUM(EXTRACT(EPOCH FROM (end_time - start_time))/60) as minutes
+        FROM tasks
+        WHERE user_id = $1 AND start_time >= $2 AND end_time <= $3
+        GROUP BY task_id
+        ORDER BY hours DESC, minutes DESC
+    `
+
+	rows, err := p.sql.Query(query, req.UserID, req.StartDate, req.EndDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var worklogs []models.Worklog
+	for rows.Next() {
+		var worklog models.Worklog
+		if err := rows.Scan(&worklog.TaskID, &worklog.Hours, &worklog.Minutes); err != nil {
+			return nil, err
+		}
+		worklogs = append(worklogs, worklog)
+	}
+
+	return worklogs, nil
 }
 
 func (p *Postgres) AddUser(u *models.User) error {
