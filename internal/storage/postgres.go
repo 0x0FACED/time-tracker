@@ -101,6 +101,7 @@ func (p *Postgres) AddUser(u *models.User) error {
 	return nil
 }
 
+// TODO: transactions bcz when delete user -> delete all his tasks. must be transaction
 func (p *Postgres) DeleteUser(id int) error {
 	_, err := p.sql.Exec(queries.DeleteUser, id)
 	if err != nil {
@@ -111,8 +112,12 @@ func (p *Postgres) DeleteUser(id int) error {
 }
 
 func (p *Postgres) UpdateUser(u *models.User) error {
-	// TODO: impl
-	panic("not impl")
+	_, err := p.sql.Exec("UPDATE users SET surname = $1, name = $2, patronymic = $3, address = $4 WHERE id = $5", u.Surname, u.Name, u.Patronymic, u.Address, u.Id)
+	if err != nil {
+		log.Println("cant update user: ", err)
+		return err
+	}
+	return nil
 }
 
 func (p *Postgres) AddStartTask(t *models.Task) error {
