@@ -11,7 +11,8 @@ type Database interface {
 }
 
 type UserDatabase interface {
-	GetUsers() (map[int]models.User, error)
+	// get users with filters and pagination
+	GetUsers(query string, params ...any) (map[int]models.User, error)
 	GetUserByID(id int) (*models.User, error)
 	GetTasksByUserID(id int) ([]models.Task, error)
 	AddUser(u *models.User) error
