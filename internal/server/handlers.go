@@ -222,10 +222,33 @@ func (s *Server) startTaskHandler(ctx *gin.Context) {
 
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
+		return
 	}
+	task := &models.Task{
+		UserID: input.UserID,
+		Desc:   input.Desc,
+	}
+	err := s.db.AddStartTask(task)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "cant start task, try again"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"res": "task started"})
 
 }
 
 func (s *Server) stopTaskHandler(ctx *gin.Context) {
-
+	id := ctx.Param("id")
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"err": "incorrect task id"})
+		return
+	}
+	err = s.db.AddEndTask(idInt)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"res": "task ended"})
 }
