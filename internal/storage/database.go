@@ -14,7 +14,7 @@ type UserDatabase interface {
 	// get users with filters and pagination
 	GetUsers(query string, params ...any) (map[int]models.User, error)
 	GetUserByID(id int) (*models.User, error)
-	GetTasksByUserID(id int) ([]models.Task, error)
+	GetUserWorklogs(req *models.GetUserWorklogsRequest) ([]models.Worklog, error)
 	AddUser(u *models.User) error
 	DeleteUser(id int) error
 	UpdateUser(u *models.User) error
