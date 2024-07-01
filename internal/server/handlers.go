@@ -176,7 +176,42 @@ func (s *Server) updateUserHandler(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
 		return
 	}
+	id := ctx.Param("id")
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
+	}
+	u, err := s.db.GetUserByID(idInt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusNotFound, gin.H{"err": "User not found"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "server error"})
+		log.Println(err)
+		return
+	}
 
+	if updateUserInput.Surname != nil {
+		u.Surname = *updateUserInput.Surname
+	}
+	if updateUserInput.Name != nil {
+		u.Name = *updateUserInput.Name
+	}
+	if updateUserInput.Patronymic != nil {
+		u.Patronymic = *updateUserInput.Patronymic
+	}
+	if updateUserInput.Address != nil {
+		u.Address = *updateUserInput.Address
+	}
+
+	err = s.db.UpdateUser(u)
+	if err != nil {
+		log.Fatalln("cant update user: ", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"res": "successfully updated"})
 }
 
 func (s *Server) startTaskHandler(ctx *gin.Context) {
