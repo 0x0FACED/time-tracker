@@ -18,7 +18,7 @@ import (
 
 func (s *Server) prepareRoutes() {
 	s.r.Handle(http.MethodGet, "/users", s.getUsersHandler)
-	s.r.Handle(http.MethodGet, "/users/:id/tasks", s.getUserTasksHandler)
+	s.r.Handle(http.MethodGet, "/users/tasks", s.getUserTasksHandler)
 	s.r.Handle(http.MethodPost, "/users", s.createUserHandler)
 	s.r.Handle(http.MethodDelete, "/users/:id", s.deleteUserHandler)
 	s.r.Handle(http.MethodPut, "/users/:id", s.updateUserHandler)
@@ -88,7 +88,19 @@ func (s *Server) getUsersHandler(ctx *gin.Context) {
 }
 
 func (s *Server) getUserTasksHandler(ctx *gin.Context) {
+	var req models.GetUserWorklogsRequest
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"err": "invalid query parameters"})
+		return
+	}
 
+	worklogs, err := s.db.GetUserWorklogs(&req)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "failed to get worklogs"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"worklogs": worklogs})
 }
 
 func (s *Server) createUserHandler(ctx *gin.Context) {
