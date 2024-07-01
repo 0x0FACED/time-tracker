@@ -50,8 +50,8 @@ func (p *Postgres) Disconnect() error {
 	panic("not impl")
 }
 
-func (p *Postgres) GetUsers() (map[int]models.User, error) {
-	rows, err := p.sql.Query(queries.GetUsers)
+func (p *Postgres) GetUsers(query string, params ...any) (map[int]models.User, error) {
+	rows, err := p.sql.Query(query, params...)
 	if err != nil {
 		log.Println("err in query: ", err)
 		return nil, err
@@ -60,8 +60,8 @@ func (p *Postgres) GetUsers() (map[int]models.User, error) {
 
 	users := make(map[int]models.User)
 	for rows.Next() {
-		var id, passportNumber, passportSerie int
-		var surname, name, patronymic, address string
+		var id int
+		var surname, name, patronymic, address, passportNumber, passportSerie string
 		rows.Scan(&id, &passportNumber, &passportSerie, &surname, &name, &patronymic, &address)
 		user := models.User{
 			Id:         id,
@@ -80,7 +80,7 @@ func (p *Postgres) GetUserByID(id int) (*models.User, error) {
 	var user models.User
 	query := "SELECT id, passport_number, pass_serie, surname, name, patronymic, address FROM users WHERE id = $1"
 	row := p.sql.QueryRow(query, id)
-	err := row.Scan(&user.Id, &user.PassNumber, &user.PassSerie, &user.Surname, &user.Name, &user.Patronymic, &user.Address)
+	err := row.Scan(&user.Id, &user.PassNumber, &user.PassSerie, &user.Name, &user.Surname, &user.Patronymic, &user.Address)
 	if err != nil {
 		return nil, err
 	}
