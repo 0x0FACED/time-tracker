@@ -93,7 +93,7 @@ func (p *Postgres) GetTasksByUserID(id int) ([]models.Task, error) {
 }
 
 func (p *Postgres) AddUser(u *models.User) error {
-	_, err := p.sql.Exec(queries.AddUser)
+	_, err := p.sql.Exec(queries.AddUser, u.PassNumber, u.PassSerie, u.Name, u.Surname, u.Patronymic, u.Address)
 	if err != nil {
 		log.Fatalln("cant create user: ", err)
 		return err
