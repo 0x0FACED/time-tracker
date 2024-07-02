@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time-tracker/internal/models"
 	"time-tracker/internal/utils"
+	"time-tracker/internal/utils/queries"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,10 +30,11 @@ func (s *Server) getUsersHandler(ctx *gin.Context) {
 	var req models.GetUsersRequest
 
 	if err := ctx.ShouldBindQuery(&req); err != nil {
+		s.logger.Errorw("getUsersHandler", "full path", ctx.FullPath())
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": "invalid query parameters"})
 		return
 	}
-	query := "SELECT id, passport_number, pass_serie, surname, name, patronymic, address FROM users WHERE 1=1"
+	query := queries.GetUsersPagination
 	params := []interface{}{}
 	paramCounter := 1
 
@@ -67,14 +68,17 @@ func (s *Server) getUsersHandler(ctx *gin.Context) {
 		params = append(params, req.Address)
 		paramCounter++
 	}
-
+	s.logger.Debugw("getUsersHandler",
+		"params", params,
+	)
 	// pagination
 	offset := (req.Page - 1) * req.PageSize
 	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", paramCounter, paramCounter+1)
 	params = append(params, req.PageSize, offset)
+
 	users, err := s.db.GetUsers(query, params...)
 	if err != nil {
-		log.Println("get users err: ", err)
+		s.logger.Errorw("getUsersHandler", "err", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err})
 		return
 	}
@@ -83,22 +87,26 @@ func (s *Server) getUsersHandler(ctx *gin.Context) {
 		return
 	}
 
+	s.logger.Infoln("successfully executed GetUsers")
+	s.logger.Debugw("getUsersHandler", "users: ", users)
 	ctx.JSON(http.StatusOK, gin.H{"users": users})
 }
 
 func (s *Server) getUserTasksHandler(ctx *gin.Context) {
 	var req models.GetUserWorklogsRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
+		s.logger.Errorw("invalid query parameters", "full path", ctx.FullPath())
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": "invalid query parameters"})
 		return
 	}
-
+	s.logger.Debugw("getUserTasksHandler", "req: ", req)
 	worklogs, err := s.db.GetUserWorklogs(&req)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "failed to get worklogs"})
 		return
 	}
-
+	s.logger.Infoln("successfully executed GetUsers")
+	s.logger.Debugw("getUserTasksHandler", "list of worklogs: ", worklogs)
 	ctx.JSON(http.StatusOK, gin.H{"worklogs": worklogs})
 }
 
@@ -106,15 +114,17 @@ func (s *Server) createUserHandler(ctx *gin.Context) {
 	var input struct {
 		PassportNumber string `json:"passport_number"`
 	}
+
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
 		return
 	}
-
+	s.logger.Debugw("createUserHandler", "passport_number", input.PassportNumber)
 	reqBody, err := json.Marshal(map[string]string{
 		"passport_number": input.PassportNumber,
 	})
 	if err != nil {
+		s.logger.Errorln("")
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "failed to marshal request"})
 		return
 	}
@@ -125,16 +135,15 @@ func (s *Server) createUserHandler(ctx *gin.Context) {
 		return
 	}
 	defer resp.Body.Close()
-
+	s.logger.Debugw("createUserHandler", "resp", resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		log.Printf("external API returned error: %s", body)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "failed to get user info from external API"})
 		return
 	}
 
 	var apiResponse models.User
 	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		s.logger.Errorw("createUserHandler", "cant decode resp", resp.Body)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "failed to decode API response"})
 		return
 	}
@@ -147,18 +156,20 @@ func (s *Server) createUserHandler(ctx *gin.Context) {
 		Patronymic: apiResponse.Patronymic,
 		Address:    apiResponse.Address,
 	}
-
+	s.logger.Debugw("createUserHandler", "full user", newUser)
 	u, err := s.db.AddUser(newUser)
 	if err != nil {
+		s.logger.Errorln("cant add user to db, error: ", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
 		return
 	}
-
+	s.logger.Infow("user successfully added to db", "user", u)
 	ctx.JSON(http.StatusOK, u)
 }
 
 func (s *Server) deleteUserHandler(ctx *gin.Context) {
 	id := ctx.Param("id")
+	s.logger.Debugw("deleteUserHandler", "id", id)
 	idInt, err := strconv.Atoi(id)
 	if err != nil {
 		log.Fatalln("id is not a number: ", err)
@@ -187,13 +198,16 @@ func (s *Server) updateUserHandler(ctx *gin.Context) {
 		return
 	}
 	id := ctx.Param("id")
+	s.logger.Debugw("updateUserHandler", "id", id, "newUser", updateUserInput)
 	idInt, err := strconv.Atoi(id)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
 	}
 	u, err := s.db.GetUserByID(idInt)
+	s.logger.Debugw("getUserByID", "user", u)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			s.logger.Debugln("user not found")
 			ctx.JSON(http.StatusNotFound, gin.H{"err": "User not found"})
 			return
 		}
@@ -214,13 +228,14 @@ func (s *Server) updateUserHandler(ctx *gin.Context) {
 	if updateUserInput.Address != nil {
 		u.Address = *updateUserInput.Address
 	}
-
+	s.logger.Debugln("full new user info", "user", u)
 	err = s.db.UpdateUser(u)
 	if err != nil {
-		log.Fatalln("cant update user: ", err)
+		s.logger.Errorln("cant update user, error: ", err.Error())
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
 		return
 	}
+	s.logger.Infoln("successfully updated user")
 	ctx.JSON(http.StatusOK, gin.H{"res": "successfully updated"})
 }
 
@@ -234,22 +249,25 @@ func (s *Server) startTaskHandler(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
 		return
 	}
+	s.logger.Debugw("startTaskHandler", "input_task", input)
 	task := &models.Task{
 		UserID: input.UserID,
 		Desc:   input.Desc,
 	}
 	err := s.db.AddStartTask(task)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "cant start task, try again"})
+		s.logger.Errorln("failed to add task to db, error: ", err.Error())
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
 		return
 	}
-
+	s.logger.Infoln("successfully start task")
 	ctx.JSON(http.StatusOK, gin.H{"res": "task started"})
 
 }
 
 func (s *Server) stopTaskHandler(ctx *gin.Context) {
 	id := ctx.Param("id")
+	s.logger.Debugw("stopTaskHandler", "id", id)
 	idInt, err := strconv.Atoi(id)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": "incorrect task id"})
@@ -257,8 +275,10 @@ func (s *Server) stopTaskHandler(ctx *gin.Context) {
 	}
 	err = s.db.AddEndTask(idInt)
 	if err != nil {
+		s.logger.Errorln("failed to end task, error: ", err.Error())
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
 		return
 	}
+	s.logger.Infoln("successfully stopped task")
 	ctx.JSON(http.StatusOK, gin.H{"res": "task ended"})
 }
