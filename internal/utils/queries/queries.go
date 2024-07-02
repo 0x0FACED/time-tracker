@@ -6,6 +6,12 @@ const (
 		FROM users
 	`
 
+	GetUsersPagination = `
+		SELECT id, passport_number, pass_serie, surname, name, patronymic, address 
+		FROM users 
+		WHERE 1=1
+	`
+
 	AddUser = `
 		INSERT INTO users (passport_number, pass_serie, name, surname, patronymic, address) 
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -35,8 +41,8 @@ const (
 	GetUserWorklogs = `
 		SELECT
 			id,
-			SUM(EXTRACT(EPOCH FROM (end_time - start_time))/3600) as hours,
-			SUM(EXTRACT(EPOCH FROM (end_time - start_time))/60) as minutes
+			ROUND(SUM(EXTRACT(EPOCH FROM (end_time - start_time))/3600))::integer as hours,
+			ROUND(SUM(EXTRACT(EPOCH FROM (end_time - start_time))/60))::integer as minutes
 		FROM tasks
 		WHERE user_id = $1 AND start_time >= $2 AND end_time <= $3
 		GROUP BY id
