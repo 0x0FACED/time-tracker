@@ -7,11 +7,12 @@ import (
 )
 
 type DatabaseConfig struct {
-	DBUsername string
-	DBName     string
-	DBHost     string
-	DBPort     string
-	DBPass     string
+	Username string
+	Name     string
+	Host     string
+	Port     string
+	Pass     string
+	Driver   string
 }
 
 type ServerConfig struct {
@@ -32,11 +33,12 @@ func Load() (*Config, error) {
 
 	return &Config{
 		DatabaseConfig{
-			DBUsername: os.Getenv("DB_USER"),
-			DBPass:     os.Getenv("DB_PASS"),
-			DBName:     os.Getenv("DB_NAME"),
-			DBHost:     os.Getenv("DB_HOST"),
-			DBPort:     os.Getenv("DB_PORT"),
+			Username: os.Getenv("DB_USER"),
+			Pass:     os.Getenv("DB_PASS"),
+			Name:     os.Getenv("DB_NAME"),
+			Host:     os.Getenv("DB_HOST"),
+			Port:     os.Getenv("DB_PORT"),
+			Driver:   os.Getenv("DB_DRIVER"),
 		},
 		ServerConfig{
 			Host: os.Getenv("S_HOST"),
