@@ -15,7 +15,7 @@ type UserDatabase interface {
 	GetUsers(query string, params ...any) (map[int]models.User, error)
 	GetUserByID(id int) (*models.User, error)
 	GetUserWorklogs(req *models.GetUserWorklogsRequest) ([]models.Worklog, error)
-	AddUser(u *models.User) error
+	AddUser(u *models.User) (*models.User, error)
 	DeleteUser(id int) error
 	UpdateUser(u *models.User) error
 }
