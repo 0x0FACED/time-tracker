@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time-tracker/internal/models"
-	"time-tracker/internal/utils/errors"
+	"time-tracker/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -79,8 +79,7 @@ func (s *Server) getUsersHandler(ctx *gin.Context) {
 		return
 	}
 	if len(users) == 0 {
-		log.Println(errors.ErrNoUsersFound)
-		ctx.JSON(http.StatusNotFound, gin.H{"err": errors.ErrNoUsersFound})
+		ctx.JSON(http.StatusNotFound, gin.H{"err": utils.ErrNoUsersFound})
 		return
 	}
 
@@ -111,7 +110,6 @@ func (s *Server) createUserHandler(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
 		return
 	}
-	log.Println("PASSPORT: ", input.PassportNumber)
 
 	reqBody, err := json.Marshal(map[string]string{
 		"passport_number": input.PassportNumber,
@@ -150,13 +148,13 @@ func (s *Server) createUserHandler(ctx *gin.Context) {
 		Address:    apiResponse.Address,
 	}
 
-	err = s.db.AddUser(newUser)
+	u, err := s.db.AddUser(newUser)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"res": "created"})
+	ctx.JSON(http.StatusOK, u)
 }
 
 func (s *Server) deleteUserHandler(ctx *gin.Context) {
