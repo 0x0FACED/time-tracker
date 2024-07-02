@@ -2,11 +2,12 @@ package storage
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
-	"log"
 	"time"
 	"time-tracker/configs"
 	"time-tracker/internal/models"
+	"time-tracker/internal/utils"
 	"time-tracker/internal/utils/queries"
 	"time-tracker/migrations"
 
@@ -25,23 +26,21 @@ func New(cfg configs.DatabaseConfig) *Postgres {
 }
 
 func (p *Postgres) connectionString() string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		p.cfg.DBUsername, p.cfg.DBPass, p.cfg.DBHost, p.cfg.DBPort, p.cfg.DBName)
+	return fmt.Sprintf("%s://%s:%s@%s:%s/%s?sslmode=disable",
+		p.cfg.Driver, p.cfg.Username, p.cfg.Pass, p.cfg.Host, p.cfg.Port, p.cfg.Name)
 }
 
 func (p *Postgres) Connect() error {
 	url := p.connectionString()
-	db, err := sql.Open("postgres", url)
+	db, err := sql.Open(p.cfg.Driver, url)
 	if err != nil {
-		log.Fatalln("cant open db: ", err)
-		return err
+		return errors.New(utils.ErrCantOpenDB)
 	}
 	if db.Ping() != nil {
-		return err
+		return errors.New(utils.ErrCantPingDB)
 	}
 	migrations.Up(url)
 	p.sql = db
-	log.Println("DB AFTER OPEN: ", p.sql)
 	return nil
 }
 
@@ -53,8 +52,7 @@ func (p *Postgres) Disconnect() error {
 func (p *Postgres) GetUsers(query string, params ...any) (map[int]models.User, error) {
 	rows, err := p.sql.Query(query, params...)
 	if err != nil {
-		log.Println("err in query: ", err)
-		return nil, err
+		return nil, fmt.Errorf(utils.ErrQuery, query, params, err)
 	}
 	defer rows.Close()
 
@@ -62,7 +60,9 @@ func (p *Postgres) GetUsers(query string, params ...any) (map[int]models.User, e
 	for rows.Next() {
 		var id int
 		var surname, name, patronymic, address, passportNumber, passportSerie string
-		rows.Scan(&id, &passportNumber, &passportSerie, &surname, &name, &patronymic, &address)
+		if err := rows.Scan(&id, &passportNumber, &passportSerie, &surname, &name, &patronymic, &address); err != nil {
+			return nil, fmt.Errorf(utils.ErrScanRow, query, params, err)
+		}
 		user := models.User{
 			Id:         id,
 			PassNumber: passportNumber,
@@ -73,13 +73,16 @@ func (p *Postgres) GetUsers(query string, params ...any) (map[int]models.User, e
 		}
 		users[id] = user
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf(utils.ErrRowIteration, query, params, err)
+	}
 	return users, nil
 }
 
 func (p *Postgres) GetUserByID(id int) (*models.User, error) {
 	var user models.User
-	query := "SELECT id, passport_number, pass_serie, surname, name, patronymic, address FROM users WHERE id = $1"
-	row := p.sql.QueryRow(query, id)
+	row := p.sql.QueryRow(queries.GetUserByID, id)
 	err := row.Scan(&user.Id, &user.PassNumber, &user.PassSerie, &user.Name, &user.Surname, &user.Patronymic, &user.Address)
 	if err != nil {
 		return nil, err
@@ -88,20 +91,9 @@ func (p *Postgres) GetUserByID(id int) (*models.User, error) {
 }
 
 func (p *Postgres) GetUserWorklogs(req *models.GetUserWorklogsRequest) ([]models.Worklog, error) {
-	query := `
-        SELECT
-            task_id,
-            SUM(EXTRACT(EPOCH FROM (end_time - start_time))/3600) as hours,
-            SUM(EXTRACT(EPOCH FROM (end_time - start_time))/60) as minutes
-        FROM tasks
-        WHERE user_id = $1 AND start_time >= $2 AND end_time <= $3
-        GROUP BY task_id
-        ORDER BY hours DESC, minutes DESC
-    `
-
-	rows, err := p.sql.Query(query, req.UserID, req.StartDate, req.EndDate)
+	rows, err := p.sql.Query(queries.GetUserWorklogs, req.UserID, req.StartDate, req.EndDate)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(utils.ErrQuery, queries.GetUserWorklogs, req, err)
 	}
 	defer rows.Close()
 
@@ -109,56 +101,76 @@ func (p *Postgres) GetUserWorklogs(req *models.GetUserWorklogsRequest) ([]models
 	for rows.Next() {
 		var worklog models.Worklog
 		if err := rows.Scan(&worklog.TaskID, &worklog.Hours, &worklog.Minutes); err != nil {
-			return nil, err
+			return nil, fmt.Errorf(utils.ErrScanRow, queries.GetUserWorklogs, req, err)
 		}
 		worklogs = append(worklogs, worklog)
 	}
-
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf(utils.ErrRowIteration, queries.GetUserWorklogs, req, err)
+	}
 	return worklogs, nil
 }
 
-func (p *Postgres) AddUser(u *models.User) error {
+func (p *Postgres) AddUser(u *models.User) (*models.User, error) {
 	_, err := p.sql.Exec(queries.AddUser, u.PassNumber, u.PassSerie, u.Name, u.Surname, u.Patronymic, u.Address)
 	if err != nil {
-		log.Fatalln("cant create user: ", err)
-		return err
+		return nil, fmt.Errorf(utils.ErrQuery, queries.AddUser, u, err)
 	}
-	return nil
+	return u, nil
 }
 
-// TODO: transactions bcz when delete user -> delete all his tasks. must be transaction
 func (p *Postgres) DeleteUser(id int) error {
-	_, err := p.sql.Exec(queries.DeleteUser, id)
+	tx, err := p.sql.Begin()
 	if err != nil {
-		log.Fatalln("cant delete user: ", err)
-		return err
+		return fmt.Errorf(utils.ErrBeginTx, err)
 	}
-	return nil
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		} else if err != nil {
+			tx.Rollback()
+		} else {
+			err = tx.Commit()
+		}
+	}()
+
+	_, err = tx.Exec(queries.DeleteUserTasks, id)
+	if err != nil {
+		return fmt.Errorf(utils.ErrQuery, queries.DeleteUserTasks, id, err)
+	}
+
+	_, err = tx.Exec(queries.DeleteUser, id)
+	if err != nil {
+		return fmt.Errorf(utils.ErrQuery, queries.DeleteUser, id, err)
+	}
+
+	return tx.Commit()
 }
 
 func (p *Postgres) UpdateUser(u *models.User) error {
-	_, err := p.sql.Exec("UPDATE users SET surname = $1, name = $2, patronymic = $3, address = $4 WHERE id = $5", u.Surname, u.Name, u.Patronymic, u.Address, u.Id)
+	_, err := p.sql.Exec(queries.UpdateUser, u.Surname, u.Name, u.Patronymic, u.Address, u.Id)
 	if err != nil {
-		log.Println("cant update user: ", err)
-		return err
+		return fmt.Errorf(utils.ErrQuery, queries.UpdateUser, u, err)
 	}
 	return nil
 }
 
 func (p *Postgres) AddStartTask(t *models.Task) error {
 	now := time.Now()
-	_, err := p.sql.Exec("INSERT INTO tasks (user_id, description, start_time) VALUES ($1, $2, $3)", t.UserID, t.Desc, now)
+	_, err := p.sql.Exec(queries.AddStartTask, t.UserID, t.Desc, now)
 	if err != nil {
-		return err
+		return fmt.Errorf(utils.ErrQuery, queries.AddStartTask, t, err)
 	}
 	return nil
 }
 
 func (p *Postgres) AddEndTask(id int) error {
 	now := time.Now()
-	_, err := p.sql.Exec("UPDATE tasks SET end_time = $1 WHERE id = $2", now, id)
+	_, err := p.sql.Exec(queries.AddEndTask, now, id)
 	if err != nil {
-		return err
+		return fmt.Errorf(utils.ErrQuery, queries.AddEndTask, id, err)
 	}
 	return nil
 }
