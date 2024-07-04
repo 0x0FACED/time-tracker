@@ -134,6 +134,8 @@ Time Tracker API is designed to manage users and their tasks. The API provides c
  
 ## Swagger Specification
 
-The Swagger specification for this API can be found in the swagger-spec.yaml file in the project root.
+The Swagger specification:
+ - [Swagger Specification English](swagger-spec-eng.yaml)
+ - [Swagger Specification Russian](swagger-spec-ru.yaml)
 
-To view and interact with the API documentation, you can use Swagger UI. Install and run Swagger UI and load the swagger.yaml file.
+To view and interact with the API documentation, you can use [Online Swagger UI](https://editor.swagger.io/). Copy code from file and paste to Editor.
