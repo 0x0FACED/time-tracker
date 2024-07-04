@@ -11,9 +11,10 @@ type Task struct {
 }
 
 type Worklog struct {
-	TaskID  int `json:"task_id"`
-	Hours   int `json:"hours"`
-	Minutes int `json:"minutes"`
+	TaskID  int    `json:"task_id"`
+	Desc    string `json:"description"`
+	Hours   int    `json:"hours"`
+	Minutes int    `json:"minutes"`
 }
 
 type GetUserWorklogsRequest struct {
