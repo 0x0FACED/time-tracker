@@ -12,7 +12,7 @@ type Database interface {
 
 type UserDatabase interface {
 	// get users with filters and pagination
-	GetUsers(query string, params ...any) (map[int]models.User, error)
+	GetUsers(req models.GetUsersRequest) (map[int]models.User, error)
 	GetUserByID(id int) (*models.User, error)
 	GetUserWorklogs(req *models.GetUserWorklogsRequest) ([]models.Worklog, error)
 	AddUser(u *models.User) (*models.User, error)
