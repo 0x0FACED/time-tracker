@@ -1,0 +1,260 @@
+openapi: 3.0.0
+info:
+  title: Time Tracker API
+  version: 1.0.0
+  description: API for managing user tasks.
+paths:
+  /users:
+    get:
+      summary: Get a list of users
+      parameters:
+        - in: query
+          name: passport_number
+          schema:
+            type: string
+          description: Passport number
+        - in: query
+          name: pass_serie
+          schema:
+            type: string
+          description: Passport series
+        - in: query
+          name: surname
+          schema:
+            type: string
+          description: Surname
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: First name
+        - in: query
+          name: patronymic
+          schema:
+            type: string
+          description: Patronymic
+        - in: query
+          name: address
+          schema:
+            type: string
+          description: Address
+        - in: query
+          name: page
+          schema:
+            type: integer
+          required: true
+          description: Page number
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+          required: true
+          description: Page size
+      responses:
+        200:
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        400:
+          description: Invalid query parameters
+        404:
+          description: Users not found
+        500:
+          description: Internal server error
+  /users/tasks:
+    get:
+      summary: Get user tasks
+      parameters:
+        - in: query
+          name: user_id
+          schema:
+            type: integer
+          required: true
+          description: User ID
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date
+          required: true
+          description: Start date
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
+          required: true
+          description: End date
+      responses:
+        200:
+          description: List of user tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  worklogs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Worklog'
+        400:
+          description: Invalid query parameters
+        500:
+          description: Internal server error
+  /create:
+    post:
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                passport_number:
+                  type: string
+                  description: Passport number
+      responses:
+        200:
+          description: User successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        400:
+          description: Invalid request data
+        500:
+          description: Internal server error
+  /users/{id}:
+    delete:
+      summary: Delete a user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        200:
+          description: User successfully deleted
+        400:
+          description: Invalid request data or deletion error
+        404:
+          description: User not found
+        500:
+          description: Internal server error
+    put:
+      summary: Update a user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                surname:
+                  type: string
+                  description: Surname
+                name:
+                  type: string
+                  description: First name
+                patronymic:
+                  type: string
+                  description: Patronymic
+                address:
+                  type: string
+                  description: Address
+      responses:
+        200:
+          description: User successfully updated
+        400:
+          description: Invalid request data
+        404:
+          description: User not found
+        500:
+          description: Internal server error
+  /tasks/start:
+    post:
+      summary: Start a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                  description: User ID
+                description:
+                  type: string
+                  description: Task description
+      responses:
+        200:
+          description: Task successfully started
+        400:
+          description: Invalid request data
+        500:
+          description: Internal server error
+  /tasks/{id}/stop:
+    post:
+      summary: Stop a task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Task ID
+      responses:
+        200:
+          description: Task successfully stopped
+        400:
+          description: Invalid request data
+        500:
+          description: Internal server error
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        passport_number:
+          type: string
+        pass_serie:
+          type: string
+        surname:
+          type: string
+        name:
+          type: string
+        patronymic:
+          type: string
+        address:
+          type: string
+    Worklog:
+      type: object
+      properties:
+        task_id:
+          type: integer
+        description:
+          type: string
+        hours:
+          type: integer
+        minutes:
+          type: integer
