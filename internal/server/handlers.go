@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time-tracker/internal/models"
 	"time-tracker/internal/utils"
-	"time-tracker/internal/utils/queries"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,7 +17,7 @@ import (
 func (s *Server) prepareRoutes() {
 	s.r.Handle(http.MethodGet, "/users", s.getUsersHandler)
 	s.r.Handle(http.MethodGet, "/users/tasks", s.getUserTasksHandler)
-	s.r.Handle(http.MethodPost, "/users", s.createUserHandler)
+	s.r.Handle(http.MethodPost, "/create", s.createUserHandler)
 	s.r.Handle(http.MethodDelete, "/users/:id", s.deleteUserHandler)
 	s.r.Handle(http.MethodPut, "/users/:id", s.updateUserHandler)
 	s.r.Handle(http.MethodPost, "/tasks/start", s.startTaskHandler)
@@ -34,49 +32,8 @@ func (s *Server) getUsersHandler(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": "invalid query parameters"})
 		return
 	}
-	query := queries.GetUsersPagination
-	params := []interface{}{}
-	paramCounter := 1
-
-	if req.PassportNumber != "" {
-		query += fmt.Sprintf(" AND passport_number = $%d", paramCounter)
-		params = append(params, req.PassportNumber)
-		paramCounter++
-	}
-	if req.PassSerie != "" {
-		query += fmt.Sprintf(" AND pass_serie = $%d", paramCounter)
-		params = append(params, req.PassSerie)
-		paramCounter++
-	}
-	if req.Surname != "" {
-		query += fmt.Sprintf(" AND surname = $%d", paramCounter)
-		params = append(params, req.Surname)
-		paramCounter++
-	}
-	if req.Name != "" {
-		query += fmt.Sprintf(" AND name = $%d", paramCounter)
-		params = append(params, req.Name)
-		paramCounter++
-	}
-	if req.Patronymic != "" {
-		query += fmt.Sprintf(" AND patronymic = $%d", paramCounter)
-		params = append(params, req.Patronymic)
-		paramCounter++
-	}
-	if req.Address != "" {
-		query += fmt.Sprintf(" AND address = $%d", paramCounter)
-		params = append(params, req.Address)
-		paramCounter++
-	}
-	s.logger.Debugw("getUsersHandler",
-		"params", params,
-	)
-	// pagination
-	offset := (req.Page - 1) * req.PageSize
-	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", paramCounter, paramCounter+1)
-	params = append(params, req.PageSize, offset)
-
-	users, err := s.db.GetUsers(query, params...)
+	s.logger.Debugw("getUsersHandler", "req", req)
+	users, err := s.db.GetUsers(req)
 	if err != nil {
 		s.logger.Errorw("getUsersHandler", "err", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err})
@@ -106,7 +63,7 @@ func (s *Server) getUserTasksHandler(ctx *gin.Context) {
 		return
 	}
 	s.logger.Infoln("successfully executed GetUsers")
-	s.logger.Debugw("getUserTasksHandler", "list of worklogs: ", worklogs)
+	s.logger.Debugw("getUserTasksHandler", "worklogs: ", worklogs)
 	ctx.JSON(http.StatusOK, gin.H{"worklogs": worklogs})
 }
 
@@ -124,7 +81,6 @@ func (s *Server) createUserHandler(ctx *gin.Context) {
 		"passport_number": input.PassportNumber,
 	})
 	if err != nil {
-		s.logger.Errorln("")
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "failed to marshal request"})
 		return
 	}
@@ -136,8 +92,16 @@ func (s *Server) createUserHandler(ctx *gin.Context) {
 	}
 	defer resp.Body.Close()
 	s.logger.Debugw("createUserHandler", "resp", resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "failed to get user info from external API"})
+	if resp.StatusCode == http.StatusBadRequest {
+		ctx.JSON(http.StatusBadRequest, gin.H{"err": "bad request"})
+		return
+	}
+	if resp.StatusCode == http.StatusInternalServerError {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"err": "internal server error"})
+		return
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		ctx.JSON(http.StatusBadRequest, gin.H{"err": "user with these passport data not found in database"})
 		return
 	}
 
@@ -168,17 +132,17 @@ func (s *Server) createUserHandler(ctx *gin.Context) {
 }
 
 func (s *Server) deleteUserHandler(ctx *gin.Context) {
-	id := ctx.Param("id")
-	s.logger.Debugw("deleteUserHandler", "id", id)
-	idInt, err := strconv.Atoi(id)
+	id_param := ctx.Param("id")
+	s.logger.Debugw("deleteUserHandler", "id", id_param)
+	id, err := strconv.Atoi(id_param)
 	if err != nil {
-		log.Fatalln("id is not a number: ", err)
+		s.logger.Debugw("deleteUserHandler", "id is not a number", err)
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": "id is not a number"})
 		return
 	}
-	err = s.db.DeleteUser(idInt)
+	err = s.db.DeleteUser(id)
 	if err != nil {
-		log.Println("cant delete user: ", err)
+		s.logger.Debugw("deleteUserHandler", "cant delete user with err", err)
 		ctx.JSON(http.StatusBadRequest, gin.H{"res": "cant delete", "err": err.Error()})
 		return
 	}
@@ -197,13 +161,13 @@ func (s *Server) updateUserHandler(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
 		return
 	}
-	id := ctx.Param("id")
-	s.logger.Debugw("updateUserHandler", "id", id, "newUser", updateUserInput)
-	idInt, err := strconv.Atoi(id)
+	id_param := ctx.Param("id")
+	s.logger.Debugw("updateUserHandler", "id", id_param, "newUser", updateUserInput)
+	id, err := strconv.Atoi(id_param)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
 	}
-	u, err := s.db.GetUserByID(idInt)
+	u, err := s.db.GetUserByID(id)
 	s.logger.Debugw("getUserByID", "user", u)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -266,14 +230,14 @@ func (s *Server) startTaskHandler(ctx *gin.Context) {
 }
 
 func (s *Server) stopTaskHandler(ctx *gin.Context) {
-	id := ctx.Param("id")
-	s.logger.Debugw("stopTaskHandler", "id", id)
-	idInt, err := strconv.Atoi(id)
+	id_param := ctx.Param("id")
+	s.logger.Debugw("stopTaskHandler", "id", id_param)
+	id, err := strconv.Atoi(id_param)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"err": "incorrect task id"})
 		return
 	}
-	err = s.db.AddEndTask(idInt)
+	err = s.db.AddEndTask(id)
 	if err != nil {
 		s.logger.Errorln("failed to end task, error: ", err.Error())
 		ctx.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
