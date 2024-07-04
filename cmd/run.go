@@ -17,7 +17,6 @@ func Run() {
 	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	config.EncoderConfig.TimeKey = "timestamp"
 	config.EncoderConfig.MessageKey = "message"
-	config.EncoderConfig.LevelKey = "level"
 	config.EncoderConfig.CallerKey = "caller"
 	logger, err := config.Build()
 	if err != nil {
