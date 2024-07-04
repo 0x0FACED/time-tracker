@@ -49,7 +49,50 @@ func (p *Postgres) Disconnect() error {
 	panic("not impl")
 }
 
-func (p *Postgres) GetUsers(query string, params ...any) (map[int]models.User, error) {
+func (p *Postgres) GetUsers(req models.GetUsersRequest) (map[int]models.User, error) {
+	query := `
+		SELECT id, passport_number, pass_serie, surname, name, patronymic, address 
+		FROM users 
+		WHERE 1=1
+	`
+	params := []interface{}{}
+	paramCounter := 1
+
+	if req.PassportNumber != "" {
+		query += fmt.Sprintf(" AND passport_number = $%d", paramCounter)
+		params = append(params, req.PassportNumber)
+		paramCounter++
+	}
+	if req.PassSerie != "" {
+		query += fmt.Sprintf(" AND pass_serie = $%d", paramCounter)
+		params = append(params, req.PassSerie)
+		paramCounter++
+	}
+	if req.Surname != "" {
+		query += fmt.Sprintf(" AND surname = $%d", paramCounter)
+		params = append(params, req.Surname)
+		paramCounter++
+	}
+	if req.Name != "" {
+		query += fmt.Sprintf(" AND name = $%d", paramCounter)
+		params = append(params, req.Name)
+		paramCounter++
+	}
+	if req.Patronymic != "" {
+		query += fmt.Sprintf(" AND patronymic = $%d", paramCounter)
+		params = append(params, req.Patronymic)
+		paramCounter++
+	}
+	if req.Address != "" {
+		query += fmt.Sprintf(" AND address = $%d", paramCounter)
+		params = append(params, req.Address)
+		paramCounter++
+	}
+	// pagination
+	offset := (req.Page - 1) * req.PageSize
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", paramCounter, paramCounter+1)
+	params = append(params, req.PageSize, offset)
+
 	rows, err := p.sql.Query(query, params...)
 	if err != nil {
 		return nil, fmt.Errorf(utils.ErrQuery, query, params, err)
