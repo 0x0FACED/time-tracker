@@ -39,6 +39,34 @@ func main() {
 	if err != nil {
 		log.Fatalln("cant migrate up: ", err)
 	}
+
+	// add user for testing
+	r.POST("/create", func(ctx *gin.Context) {
+		var newUser struct {
+			PassNumber string `json:"passport_number"`
+			PassSerie  string `json:"pass_serie"`
+			Surname    string `json:"surname"`
+			Name       string `json:"name"`
+			Patronymic string `json:"patronymic"`
+			Address    string `json:"address"`
+		}
+		if err := ctx.ShouldBindJSON(&newUser); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"err": "bad request"})
+			return
+		}
+		log.Println("USER: ", newUser)
+
+		query := `
+			INSERT INTO users (passport_number, pass_serie, name, surname, patronymic, address) 
+			VALUES ($1, $2, $3, $4, $5, $6)
+		`
+		_, err := db.Exec(query, newUser.PassNumber, newUser.PassSerie, newUser.Name, newUser.Surname, newUser.Patronymic, newUser.Address)
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
+		}
+		ctx.JSON(http.StatusOK, newUser)
+	})
+
 	r.POST("/info", func(ctx *gin.Context) {
 		var passport struct {
 			PassportNumber string `json:"passport_number"`
@@ -56,7 +84,11 @@ func main() {
 			WHERE passport_number = $1 AND pass_serie = $2
 		`
 		var u user
-		db.QueryRow(query, number[1], number[0]).Scan(u.Name, u.Surname, u.Patronymic, u.Address)
+		if db.QueryRow(query, number[1], number[0]).Scan(u.Name, u.Surname, u.Patronymic, u.Address) == sql.ErrNoRows {
+			ctx.JSON(http.StatusNotFound, u)
+			return
+		}
+
 		ctx.JSON(http.StatusOK, u)
 	})
 
