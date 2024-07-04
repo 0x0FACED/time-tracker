@@ -1,0 +1,256 @@
+openapi: 3.0.0
+info:
+  title: Time Tracker API
+  version: 1.0.0
+  description: API для управления задачами пользователей.
+paths:
+  /users:
+    get:
+      summary: Получить список пользователей
+      parameters:
+        - in: query
+          name: passport_number
+          schema:
+            type: string
+          description: Номер паспорта
+        - in: query
+          name: pass_serie
+          schema:
+            type: string
+          description: Серия паспорта
+        - in: query
+          name: surname
+          schema:
+            type: string
+          description: Фамилия
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: Имя
+        - in: query
+          name: patronymic
+          schema:
+            type: string
+          description: Отчество
+        - in: query
+          name: address
+          schema:
+            type: string
+          description: Адрес
+        - in: query
+          name: page
+          schema:
+            type: integer
+          required: true
+          description: Номер страницы
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+          required: true
+          description: Размер страницы
+      responses:
+        200:
+          description: Список пользователей
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        400:
+          description: Неверные параметры запроса
+        404:
+          description: Пользователи не найдены
+        500:
+          description: Внутренняя ошибка сервера
+  /users/tasks:
+    get:
+      summary: Получить задачи пользователя
+      parameters:
+        - in: query
+          name: user_id
+          schema:
+            type: integer
+          required: true
+          description: Идентификатор пользователя
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date
+          required: true
+          description: Дата начала отсчета
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
+          required: true
+          description: Дата окончания отсчета
+      responses:
+        200:
+          description: Список задач пользователя
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  worklogs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Worklog'
+        400:
+          description: Неверные параметры запроса
+        500:
+          description: Внутренняя ошибка сервера
+  /create:
+    post:
+      summary: Создать пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                passport_number:
+                  type: string
+                  description: Номер паспорта
+      responses:
+        200:
+          description: Успешное создание пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        400:
+          description: Неверные данные запроса
+        500:
+          description: Внутренняя ошибка сервера
+  /users/{id}:
+    delete:
+      summary: Удалить пользователя
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Идентификатор пользователя
+      responses:
+        200:
+          description: Успешное удаление пользователя
+        400:
+          description: Неверные данные запроса или ошибка удаления
+    put:
+      summary: Обновить пользователя
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Идентификатор пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                surname:
+                  type: string
+                  description: Фамилия
+                name:
+                  type: string
+                  description: Имя
+                patronymic:
+                  type: string
+                  description: Отчество
+                address:
+                  type: string
+                  description: Адрес
+      responses:
+        200:
+          description: Успешное обновление пользователя
+        400:
+          description: Неверные данные запроса
+        404:
+          description: Пользователь не найден
+        500:
+          description: Внутренняя ошибка сервера
+  /tasks/start:
+    post:
+      summary: Начать задачу
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                  description: Идентификатор пользователя
+                description:
+                  type: string
+                  description: Описание задачи
+      responses:
+        200:
+          description: Задача успешно начата
+        400:
+          description: Неверные данные запроса
+        500:
+          description: Внутренняя ошибка сервера
+  /tasks/{id}/stop:
+    post:
+      summary: Остановить задачу
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Идентификатор задачи
+      responses:
+        200:
+          description: Задача успешно остановлена
+        400:
+          description: Неверные данные запроса
+        500:
+          description: Внутренняя ошибка сервера
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        passport_number:
+          type: string
+        pass_serie:
+          type: string
+        surname:
+          type: string
+        name:
+          type: string
+        patronymic:
+          type: string
+        address:
+          type: string
+    Worklog:
+      type: object
+      properties:
+        task_id:
+          type: integer
+        description:
+          type: string
+        hours:
+          type: integer
+        minutes:
+          type: integer
